@@ -99,10 +99,15 @@ fn calculate_hash(file: &PathBuf) -> Result<u32, Error> {
 fn rename_file(file: &PathBuf, hash_bytes: u32, calc_bytes: u32) -> Result<(), Error> {
     let crc_hash = format!("[{:08X}]", hash_bytes);
     let crc_calc = format!("[{:08X}]", calc_bytes);
-    let new_name = file
+    let mut new_name = file
         .to_str()
         .unwrap_or_default()
         .replace(&crc_hash, &crc_calc);
+    if file.as_path() == Path::new(&new_name) {
+        if let Some(i) = new_name.rfind(".") {
+            new_name.insert_str(i, &crc_calc);
+        }
+    }
     fs::rename(file, new_name)?;
     Ok(())
 }
