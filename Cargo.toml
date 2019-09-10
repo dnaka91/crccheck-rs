@@ -1,0 +1,26 @@
+[package]
+name = "crccheck"
+version = "0.1.0"
+authors = ["Dominik Nakamura <dnaka91@gmail.com>"]
+edition = "2018"
+description = "Implementation of the Saltpack format in Rust"
+documentation = "https://docs.rs/saltpack"
+homepage = "https://github.com/dnaka91/saltpack-rs"
+repository = "https://github.com/dnaka91/saltpack-rs"
+readme = "README.md"
+keywords = ["cli", "crc", "utility"]
+categories = ["command-line-utilities"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+colored = "1.8.0"
+crc32fast = "1.2.0"
+crossbeam-utils = "0.6.6"
+failure = "0.1.5"
+num_cpus = "1.10.1"
+structopt = "0.3.1"
+threadpool = "1.7.1"
+
+[profile.release]
+lto = true
+panic = "abort"
