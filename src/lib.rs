@@ -1,27 +1,27 @@
 use std::fs::{self, File};
 use std::io::{ErrorKind, Read};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use colored::*;
 use crc32fast::Hasher;
 use crossbeam_utils::sync::WaitGroup;
-use failure::Error;
+use failure::{err_msg, Error};
 use threadpool::ThreadPool;
 
-pub fn check<P: AsRef<Path>>(dir: P, update: bool) -> Result<(), Error> {
-    let files = fs::read_dir(dir)?;
+pub fn check<P: AsRef<Path>>(files: &Vec<P>, update: bool, add: bool) -> Result<(), Error> {
     let pool = ThreadPool::new(num_cpus::get() * 4);
     let wg = WaitGroup::new();
 
     for file in files {
-        let file = file?.path();
+        let file = file.as_ref();
         if file.is_dir() {
             continue;
         }
 
         let wg = wg.clone();
+        let file = file.to_path_buf();
         pool.execute(move || {
-            check_crc(&file, update).unwrap();
+            check_crc(file.as_path(), update, add).unwrap();
             drop(wg);
         });
     }
@@ -30,24 +30,33 @@ pub fn check<P: AsRef<Path>>(dir: P, update: bool) -> Result<(), Error> {
     Ok(())
 }
 
-fn check_crc(file: &PathBuf, update: bool) -> Result<(), Error> {
+fn check_crc(file: &Path, update: bool, add: bool) -> Result<(), Error> {
     let name = file.file_name().unwrap().to_str().unwrap();
-    let hash_bytes = match extract_hash(name)? {
-        Some(v) => v,
-        None => return Ok(()),
-    };
+    let hash_bytes = extract_hash(name)?;
     let calc_bytes = match calculate_hash(file) {
         Ok(v) => v,
         Err(e) => return Err(e),
     };
 
-    let result = if hash_bytes == calc_bytes {
-        "OK".green()
-    } else if update {
-        rename_file(file, hash_bytes, calc_bytes)?;
-        "UPDATED".yellow()
-    } else {
-        "MISMATCH".red()
+    let result = match hash_bytes {
+        None => {
+            if add {
+                add_file_hash(file, calc_bytes)?;
+                "ADDED".blue()
+            } else {
+                "SKIPPED".magenta()
+            }
+        }
+        Some(hash_bytes) => {
+            if hash_bytes == calc_bytes {
+                "OK".green()
+            } else if update {
+                update_file_hash(file, hash_bytes, calc_bytes)?;
+                "UPDATED".yellow()
+            } else {
+                "MISMATCH".red()
+            }
+        }
     };
 
     println!("{:>8} - {}", result, name);
@@ -81,7 +90,7 @@ fn is_u32_hex(text: &str) -> bool {
     text.len() == 8 && text.chars().all(|c| "0123456789abcdefABCDEF".contains(c))
 }
 
-fn calculate_hash(file: &PathBuf) -> Result<u32, Error> {
+fn calculate_hash(file: &Path) -> Result<u32, Error> {
     let mut file = File::open(file)?;
     let mut buf = [0u8; 8192];
     let mut hasher = Hasher::new();
@@ -96,18 +105,25 @@ fn calculate_hash(file: &PathBuf) -> Result<u32, Error> {
     }
 }
 
-fn rename_file(file: &PathBuf, hash_bytes: u32, calc_bytes: u32) -> Result<(), Error> {
-    let crc_hash = format!("[{:08X}]", hash_bytes);
-    let crc_calc = format!("[{:08X}]", calc_bytes);
-    let mut new_name = file
-        .to_str()
-        .unwrap_or_default()
-        .replace(&crc_hash, &crc_calc);
-    if file.as_path() == Path::new(&new_name) {
-        if let Some(i) = new_name.rfind(".") {
-            new_name.insert_str(i, &crc_calc);
+fn add_file_hash(file: &Path, hash_bytes: u32) -> Result<(), Error> {
+    if let Some(name) = file.to_str() {
+        let mut name = name.to_owned();
+        if let Some(i) = name.rfind(".") {
+            name.insert_str(i, &format!("[{:08X}]", hash_bytes));
+            fs::rename(file, name)?;
+            return Ok(());
         }
     }
+    Err(err_msg("can't add hash to file name"))
+}
+
+fn update_file_hash(file: &Path, hash_bytes: u32, calc_bytes: u32) -> Result<(), Error> {
+    let crc_hash = format!("[{:08X}]", hash_bytes);
+    let crc_calc = format!("[{:08X}]", calc_bytes);
+    let new_name = file
+        .to_str()
+        .ok_or(err_msg("can't update hash of file"))?
+        .replace(&crc_hash, &crc_calc);
     fs::rename(file, new_name)?;
     Ok(())
 }

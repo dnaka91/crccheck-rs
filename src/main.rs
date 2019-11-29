@@ -15,15 +15,11 @@ struct Opt {
     #[structopt(short, long, help = "Whether to update a CRC code if it didn't match")]
     update: bool,
 
-    #[structopt(
-    parse(from_os_str),
-    help = "The directory where to search for files",
-    default_value = "."
-    )]
-    dir: PathBuf,
+    #[structopt(parse(from_os_str), help = "The files to check for CRC codes")]
+    files: Vec<PathBuf>,
 }
 
 fn main() {
     let opt: Opt = Opt::from_args();
-    crccheck::check(opt.dir, opt.update).unwrap();
+    crccheck::check(&opt.files, opt.update, opt.add).unwrap();
 }
