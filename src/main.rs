@@ -1,26 +1,28 @@
+#![forbid(unsafe_code)]
+#![deny(clippy::all, clippy::pedantic)]
+#![warn(clippy::nursery)]
+
 use std::path::PathBuf;
 
+use anyhow::Result;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
+/// Simple CLI tool to check CRC values in file names
 #[derive(Debug, StructOpt)]
-#[structopt(
-about = "An example of StructOpt usage.",
-setting = AppSettings::ColoredHelp,
-)]
+#[structopt(setting = AppSettings::ColoredHelp)]
 struct Opt {
-    #[structopt(short, long, help = "Whether to update a CRC code if it didn't match")]
+    /// Whether to update a CRC code if it didn't match
+    #[structopt(short, long)]
     update: bool,
 
-    #[structopt(
-        parse(from_os_str),
-        help = "The directory where to search for files",
-        default_value = "."
-    )]
+    /// The directory where to search for files
+    #[structopt(parse(from_os_str), default_value = ".")]
     dir: PathBuf,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<()> {
     let opt: Opt = Opt::from_args();
-    crccheck::check(opt.dir, opt.update).unwrap();
+    crccheck::check(opt.dir, opt.update).await
 }

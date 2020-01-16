@@ -3,23 +3,29 @@ name = "crccheck"
 version = "0.1.0"
 authors = ["Dominik Nakamura <dnaka91@gmail.com>"]
 edition = "2018"
-description = "Implementation of the Saltpack format in Rust"
-documentation = "https://docs.rs/saltpack"
-homepage = "https://github.com/dnaka91/saltpack-rs"
-repository = "https://github.com/dnaka91/saltpack-rs"
+description = "Simple CLI tool to check CRC values in file names"
+documentation = "https://docs.rs/crccheck"
+homepage = "https://github.com/dnaka91/crccheck-rs"
+repository = "https://github.com/dnaka91/crccheck-rs"
 readme = "README.md"
 keywords = ["cli", "crc", "utility"]
 categories = ["command-line-utilities"]
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-colored = "1.8.0"
+anyhow = "1.0.26"
+colored = "1.9.2"
 crc32fast = "1.2.0"
-crossbeam-utils = "0.6.6"
-failure = "0.1.5"
-num_cpus = "1.10.1"
-structopt = "0.3.1"
-threadpool = "1.7.1"
+structopt = "0.3.7"
+
+[dependencies.futures]
+version = "0.3.1"
+default-features = false
+features = ["std"]
+
+[dependencies.tokio]
+version = "0.2.9"
+features = ["fs", "io-util", "macros", "rt-threaded", "stream"]
 
 [profile.release]
 lto = true
