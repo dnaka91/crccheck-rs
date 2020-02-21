@@ -16,15 +16,15 @@ license = "MIT OR Apache-2.0"
 anyhow = "1.0.26"
 colored = "1.9.2"
 crc32fast = "1.2.0"
-structopt = "0.3.7"
+structopt = "0.3.9"
 
 [dependencies.futures]
-version = "0.3.1"
+version = "0.3.4"
 default-features = false
 features = ["std"]
 
 [dependencies.tokio]
-version = "0.2.9"
+version = "0.2.11"
 features = ["fs", "io-util", "macros", "rt-threaded", "stream"]
 
 [profile.release]
