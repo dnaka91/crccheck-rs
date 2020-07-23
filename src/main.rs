@@ -1,8 +1,7 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::all, clippy::pedantic)]
 #![warn(clippy::nursery)]
-#![allow(clippy::missing_errors_doc, clippy::used_underscore_binding)]
-#![cfg_attr(test, allow(clippy::wildcard_imports))]
+#![allow(clippy::missing_errors_doc)]
 
 use std::path::{Path, PathBuf};
 
