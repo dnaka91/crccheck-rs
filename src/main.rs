@@ -4,13 +4,13 @@
 #![allow(clippy::missing_errors_doc, clippy::used_underscore_binding)]
 #![cfg_attr(test, allow(clippy::wildcard_imports))]
 
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use colored::Colorize;
 use crc32fast::Hasher;
-use futures::prelude::*;
+use futures_util::future;
+use futures_util::stream::StreamExt;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 use tokio::fs::{self, File};
