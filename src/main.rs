@@ -6,61 +6,69 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use async_stream::try_stream;
+use clap::{AppSettings, Clap};
 use colored::Colorize;
 use crc32fast::Hasher;
-use futures_util::future;
-use futures_util::stream::StreamExt;
-use structopt::clap::AppSettings;
-use structopt::StructOpt;
-use tokio::fs::{self, File};
-use tokio::io::ErrorKind;
-use tokio::prelude::*;
+use futures_util::stream::{Stream, StreamExt, TryStreamExt};
+use tokio::{
+    fs::{self, DirEntry, File},
+    io::{AsyncReadExt, ErrorKind},
+};
 
 /// Simple CLI tool to check CRC values in file names
-#[derive(Debug, StructOpt)]
-#[structopt(setting = AppSettings::ColoredHelp)]
+#[derive(Debug, Clap)]
+#[clap(setting = AppSettings::ColoredHelp)]
 struct Opt {
     /// Whether to update a CRC code if it didn't match
-    #[structopt(short, long)]
+    #[clap(short, long)]
     update: bool,
 
     /// The directory where to search for files
-    #[structopt(parse(from_os_str), default_value = ".")]
+    #[clap(parse(from_os_str), default_value = ".")]
     dir: PathBuf,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    let opt: Opt = Opt::from_args();
+    let opt: Opt = Opt::parse();
     check(opt.dir, opt.update).await
 }
 
 pub async fn check<P: AsRef<Path> + Send>(dir: P, update: bool) -> Result<()> {
-    let files: Vec<_> = fs::read_dir(dir).await?.collect().await;
-    let mut handles = vec![];
+    let files = read_dir(dir).await?.collect::<Vec<_>>().await;
 
-    for file in files {
-        let file = file?.path();
-        if file.is_dir() {
-            continue;
-        }
+    let temp = futures_util::stream::iter(files)
+        .try_filter_map(|file: DirEntry| async move {
+            if file.metadata().await?.is_file() {
+                Ok(Some(check_crc(file.path(), update)))
+            } else {
+                Ok(None)
+            }
+        })
+        .try_buffer_unordered(num_cpus::get() * 2);
 
-        handles.push(tokio::spawn(async move {
-            check_crc(&file, update).await.unwrap();
-        }));
-    }
-
-    future::join_all(handles).await;
-    Ok(())
+    Box::pin(temp).try_collect::<()>().await
 }
 
-async fn check_crc(file: &PathBuf, update: bool) -> Result<()> {
+async fn read_dir(dir: impl AsRef<Path> + Send) -> Result<impl Stream<Item = Result<DirEntry>>> {
+    let dir = dir.as_ref().to_owned();
+    let mut files = fs::read_dir(dir).await?;
+
+    Ok(try_stream! {
+        while let Some(entry) = files.next_entry().await? {
+            yield entry;
+        }
+    })
+}
+
+async fn check_crc(file: PathBuf, update: bool) -> Result<()> {
     let name = file.file_name().unwrap().to_str().unwrap();
     let hash_bytes = match extract_hash(name)? {
         Some(v) => v,
         None => return Ok(()),
     };
-    let calc_bytes = match calculate_hash(file).await {
+    let calc_bytes = match calculate_hash(&file).await {
         Ok(v) => v,
         Err(e) => return Err(e),
     };
@@ -68,7 +76,7 @@ async fn check_crc(file: &PathBuf, update: bool) -> Result<()> {
     let result = if hash_bytes == calc_bytes {
         "OK".green()
     } else if update {
-        rename_file(file, hash_bytes, calc_bytes).await?;
+        rename_file(&file, hash_bytes, calc_bytes).await?;
         "UPDATED".yellow()
     } else {
         "MISMATCH".red()
